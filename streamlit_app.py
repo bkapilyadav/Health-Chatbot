@@ -1,35 +1,41 @@
 import streamlit as st
 from openai import OpenAI
+from datetime import datetime
+import pandas as pd
+import os
 
-# Initialize OpenAI client using Streamlit's secrets
+# --- SETUP ---
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+st.title("Health Chatbot 🤖💊")
 
-# Title of the app
-st.title("Health Chatbot")
-
-# Guardrails: Define system instructions
 SYSTEM_PROMPT = (
     "You are a helpful health assistant. "
-    "You must not provide medical diagnoses, prescriptions, or treatment plans. "
-    "Only provide general wellness advice and suggest consulting a licensed medical professional. "
-    "Avoid suggesting specific medications or medical procedures. "
-    "Always include a disclaimer that this is not a substitute for professional medical advice."
+    "Do not provide medical diagnoses, prescriptions, or treatments. "
+    "Only give general health and wellness advice. "
+    "Always recommend consulting a licensed healthcare professional. "
+    "Avoid discussing medications or procedures."
 )
 
-# Initialize session state for chat history
+# --- SESSION STATE ---
+
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+if "log" not in st.session_state:
+    st.session_state.log = []
 
-# Display chat history
-for message in st.session_state.messages[1:]:  # skip system prompt from UI
-    role, content = message["role"], message["content"]
-    with st.chat_message(role):
-        st.markdown(content)
+# --- DISPLAY CHAT HISTORY ---
 
-# Collect user input for symptoms
-user_input = st.chat_input("Describe your symptoms here...")
+for msg in st.session_state.messages[1:]:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-# Function to get a response from OpenAI with health-safe guardrails
+# --- CHAT INPUT ---
+
+user_input = st.chat_input("Describe your symptoms...")
+
+# --- RESPONSE FUNCTION WITH LOGGING ---
+
 def get_response(prompt):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -37,22 +43,51 @@ def get_response(prompt):
     )
     return response.choices[0].message.content
 
-# Process and display response if there's input
+# --- PROCESS INPUT ---
+
 if user_input:
-    # Append user's message
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Create the assistant prompt with a subtle framing
     assistant_prompt = (
-        f"A user has described their symptoms as: {user_input}. "
-        "Provide general wellness suggestions only, based on common health knowledge. "
-        "Do not diagnose or offer treatment. Suggest visiting a doctor."
+        f"A user has described symptoms as: {user_input}. "
+        "Provide safe, general wellness suggestions. Avoid medical advice."
     )
-
-    assistant_response = get_response(assistant_prompt)
-    st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    response = get_response(assistant_prompt)
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
     with st.chat_message("assistant"):
-        st.markdown(assistant_response)
+        st.markdown(response)
+
+        # Rating + Flagging UI
+        col1, col2 = st.columns(2)
+        with col1:
+            feedback = st.radio("Rate this response", ["👍", "👎"], horizontal=True)
+        with col2:
+            flag = st.checkbox("🚩 Flag this response")
+
+        # Log entry
+        st.session_state.log.append({
+            "timestamp": datetime.now().isoformat(),
+            "user_input": user_input,
+            "response": response,
+            "feedback": feedback,
+            "flagged": flag
+        })
+
+# --- DOWNLOADABLE LOG HISTORY ---
+
+if st.session_state.log:
+    df_log = pd.DataFrame(st.session_state.log)
+    csv_log = df_log.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Download Chat Log", csv_log, file_name="health_chat_log.csv")
+
+# --- FOOTER DISCLAIMER ---
+
+st.markdown("---")
+st.markdown(
+    "⚠️ **Disclaimer:** This chatbot does not provide medical advice. "
+    "It is intended for general wellness information only. "
+    "Always consult with a licensed healthcare professional for medical concerns."
+)
