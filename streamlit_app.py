@@ -1,56 +1,43 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import datetime
-import pandas as pd
 import re
 
-# --- SETUP ---
-
+# Initialize OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-st.title("Health Chatbot 🤖💊")
 
-# Define health-related keywords
-HEALTH_KEYWORDS = [
-    "symptom", "pain", "headache", "fever", "cough", "cold", "tired",
-    "health", "medicine", "remedy", "treatment", "body", "wellness",
-    "injury", "flu", "infection", "sick", "vomit", "dizzy", "nausea",
-    "exercise", "nutrition", "mental", "stress", "anxiety", "fatigue",
-    "allergy", "diarrhea", "burn", "rash", "cramp"
-]
+st.title("Health Chatbot 🤖💬")
 
-# System prompt enforcing strict behavior
+# System prompt to keep it focused
 SYSTEM_PROMPT = (
-    "You are a health-focused AI assistant. You ONLY respond to questions "
-    "about health, wellness, or general well-being. "
-    "If a user asks about unrelated topics (like finance, politics, or entertainment), "
-    "politely decline to answer. Never provide a diagnosis or prescription."
+    "You are a health assistant. Only provide advice for medical, health, or wellness-related issues. "
+    "Do not answer anything unrelated. If asked non-health questions, politely decline."
 )
 
-# --- SESSION STATE ---
-
+# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-if "log" not in st.session_state:
-    st.session_state.log = []
 
-# --- DISPLAY CHAT HISTORY ---
-
+# Display chat history
 for msg in st.session_state.messages[1:]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- CHAT INPUT ---
+# User input
+user_input = st.chat_input("Describe your symptoms here...")
 
-user_input = st.chat_input("Describe your symptoms...")
-
-# --- UTILITY: Check if input is health-related ---
-
+# Keyword-based health check (improved)
 def is_health_related(prompt):
-    prompt_lower = prompt.lower()
-    return any(re.search(rf"\b{kw}\b", prompt_lower) for kw in HEALTH_KEYWORDS)
+    HEALTH_TERMS = [
+        "pain", "fever", "gas", "bloating", "tightness", "headache", "dizzy",
+        "sick", "ill", "vomit", "diarrhea", "symptom", "nausea", "cramp", "burn",
+        "chest", "stomach", "cough", "flu", "infection", "allergy", "rash", "pressure",
+        "mental", "anxiety", "stress", "tired", "exhausted", "cold", "constipation",
+        "digestion", "digestive", "relieve", "relief", "breathing", "fatigue"
+    ]
+    prompt = prompt.lower()
+    return any(word in prompt for word in HEALTH_TERMS)
 
-# --- RESPONSE FUNCTION ---
-
+# Function to get assistant response
 def get_response(prompt):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -58,8 +45,7 @@ def get_response(prompt):
     )
     return response.choices[0].message.content
 
-# --- PROCESS USER INPUT ---
-
+# Process input
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
@@ -67,40 +53,23 @@ if user_input:
 
     if is_health_related(user_input):
         assistant_prompt = (
-            f"A user has described symptoms or asked a health question: {user_input}. "
-            "Provide safe, general wellness suggestions only."
+            f"The user has described the following issue: {user_input}. "
+            f"Please provide general health guidance or remedies. Avoid any diagnosis."
         )
-        response = get_response(assistant_prompt)
+        reply = get_response(assistant_prompt)
     else:
-        response = (
-            "⚠️ I'm designed to assist **only with health and wellness-related questions**. "
-            "Please describe symptoms or ask something health-specific."
+        reply = (
+            "⚠️ I'm here to assist only with health and wellness-related questions. "
+            "Please rephrase your query to describe a medical concern."
         )
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": reply})
     with st.chat_message("assistant"):
-        st.markdown(response)
+        st.markdown(reply)
 
-    # Log it
-    st.session_state.log.append({
-        "timestamp": datetime.now().isoformat(),
-        "user_input": user_input,
-        "response": response,
-        "is_health_related": is_health_related(user_input)
-    })
-
-# --- LOG DOWNLOAD ---
-
-if st.session_state.log:
-    df_log = pd.DataFrame(st.session_state.log)
-    csv = df_log.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Download Chat Log", csv, "chat_log.csv")
-
-# --- FOOTER DISCLAIMER ---
-
+# Footer disclaimer
 st.markdown("---")
 st.markdown(
-    "⚠️ **Disclaimer:** This chatbot is for informational purposes only. "
-    "It does not provide medical diagnoses or treatments. "
-    "Please consult a licensed healthcare provider for medical issues."
+    "🛑 **Disclaimer:** This chatbot is for informational purposes only and does not replace professional medical advice. "
+    "Please consult a healthcare provider for diagnosis and treatment."
 )
