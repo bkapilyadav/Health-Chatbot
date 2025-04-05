@@ -5,7 +5,7 @@ from openai import OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Title
-st.title("Health Chatbot 🩺")
+st.title("Health Chatbot 🤖🩺")
 
 # System guardrail: Medically-focused, general advice only
 system_message = {
