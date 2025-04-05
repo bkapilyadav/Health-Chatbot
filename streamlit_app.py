@@ -63,3 +63,10 @@ if user_input:
         # Reject non-health prompts
         with st.chat_message("assistant"):
             st.warning("⚠️ This chatbot only answers health-related queries. Please enter a valid symptom or health question.")
+
+# Disclaimer
+st.markdown("---")
+st.markdown(
+    "🛑 **Disclaimer:** This assistant provides general health-related guidance. "
+    "Always consult a certified medical professional for diagnosis and treatment."
+)
