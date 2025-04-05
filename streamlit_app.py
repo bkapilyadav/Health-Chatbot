@@ -1,43 +1,39 @@
 import streamlit as st
 from openai import OpenAI
-import re
 
 # Initialize OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-st.title("Health Chatbot 🤖💬")
+st.title("Health Chatbot 🤖")
 
-# System prompt to keep it focused
+# System prompt to keep the assistant focused on health advice
 SYSTEM_PROMPT = (
-    "You are a health assistant. Only provide advice for medical, health, or wellness-related issues. "
-    "Do not answer anything unrelated. If asked non-health questions, politely decline."
+    "You are a helpful and responsible health assistant. You only answer questions related to health, "
+    "wellness, or medical topics. If a question is outside of this domain, politely refuse."
 )
 
-# Initialize chat history
+# Initialize session history
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-# Display chat history
+# Display conversation history
 for msg in st.session_state.messages[1:]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User input
-user_input = st.chat_input("Describe your symptoms here...")
+# Function to check if prompt is medical using GPT
+def is_medical_query(prompt):
+    check_response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a classifier that answers only YES or NO."},
+            {"role": "user", "content": f"Is this input related to health, medicine or wellness? '{prompt}' Just answer YES or NO."}
+        ]
+    )
+    answer = check_response.choices[0].message.content.strip().upper()
+    return answer.startswith("YES")
 
-# Keyword-based health check (improved)
-def is_health_related(prompt):
-    HEALTH_TERMS = [
-        "pain", "fever", "gas", "bloating", "tightness", "headache", "dizzy",
-        "sick", "ill", "vomit", "diarrhea", "symptom", "nausea", "cramp", "burn",
-        "chest", "stomach", "cough", "flu", "infection", "allergy", "rash", "pressure",
-        "mental", "anxiety", "stress", "tired", "exhausted", "cold", "constipation",
-        "digestion", "digestive", "relieve", "relief", "breathing", "fatigue"
-    ]
-    prompt = prompt.lower()
-    return any(word in prompt for word in HEALTH_TERMS)
-
-# Function to get assistant response
+# Get assistant's response
 def get_response(prompt):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -45,31 +41,31 @@ def get_response(prompt):
     )
     return response.choices[0].message.content
 
-# Process input
+# Chat input
+user_input = st.chat_input("Describe your symptoms here...")
+
+# Handle input
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    if is_health_related(user_input):
-        assistant_prompt = (
-            f"The user has described the following issue: {user_input}. "
-            f"Please provide general health guidance or remedies. Avoid any diagnosis."
-        )
+    if is_medical_query(user_input):
+        assistant_prompt = f"The user has described: {user_input}. Provide general health advice (not a diagnosis)."
         reply = get_response(assistant_prompt)
     else:
         reply = (
-            "⚠️ I'm here to assist only with health and wellness-related questions. "
-            "Please rephrase your query to describe a medical concern."
+            "⚠️ I'm only able to assist with medical, wellness, or health-related topics. "
+            "Please ask a health-related question."
         )
 
     st.session_state.messages.append({"role": "assistant", "content": reply})
     with st.chat_message("assistant"):
         st.markdown(reply)
 
-# Footer disclaimer
+# Disclaimer
 st.markdown("---")
 st.markdown(
-    "🛑 **Disclaimer:** This chatbot is for informational purposes only and does not replace professional medical advice. "
-    "Please consult a healthcare provider for diagnosis and treatment."
+    "🛑 **Disclaimer:** This assistant provides general health-related guidance. "
+    "Always consult a certified medical professional for diagnosis and treatment."
 )
